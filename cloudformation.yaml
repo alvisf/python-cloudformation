@@ -1,0 +1,134 @@
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: EC2-wth-minconda-port-80-5000-22
+  KeyName:
+    Description: Amazon EC2 KeyPair
+    Type: AWS::EC2::KeyPair::KeyName
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.0.0.0/16
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.0.1.0/24
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-09e67e426f25ce0d7
+    us-east-2:
+      AMI: ami-00399ec92321828f5
+    us-west-2:
+      AMI: ami-03d5c68bab01f3496
+    ap-south-1:
+      AMI: ami-0c1a7f89451184c8b
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} miniconda instance
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet:
+            - Ref: "MySecurityGroup"
+          SubnetId:
+            Ref: "PublicSubnet1"
+      UserData:
+        "Fn::Base64": !Sub |
+          #!/bin/bash -xe   
+          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+          sudo chmod +x Miniconda3-latest-Linux-x86_64.sh
+          ./Miniconda3-latest-Linux-x86_64.sh
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open Port 22 for ssh
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+Outputs:
+  ConnectionCMD:
+    Value: !Join ["", [ssh -A ubuntu@, !GetAtt EC2Instance.PublicIp]]
+    Description: Copy and run it in your shell(ssh-add *.pem for this to work)
