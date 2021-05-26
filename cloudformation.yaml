@@ -2,19 +2,20 @@ Parameters:
   EnvironmentName:
     Description: An environment name that is prefixed to resource names
     Type: String
-    Default: EC2-wth-minconda-port-80-5000-22
+    Default: EC2-wth-port-80-5000-22
   KeyName:
     Description: Amazon EC2 KeyPair
-    Type: AWS::EC2::KeyPair::KeyName
+    Type: "AWS::EC2::KeyPair::KeyName"
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
     Type: String
     Default: 10.0.0.0/16
   PublicSubnet1CIDR:
-    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Description: >-
+      Please enter the IP range (CIDR notation) for the public subnet in the
+      first Availability Zone
     Type: String
     Default: 10.0.1.0/24
-
 Mappings:
   RegionMap:
     us-east-1:
@@ -25,10 +26,9 @@ Mappings:
       AMI: ami-03d5c68bab01f3496
     ap-south-1:
       AMI: ami-0c1a7f89451184c8b
-
 Resources:
   VPC:
-    Type: AWS::EC2::VPC
+    Type: "AWS::EC2::VPC"
     Properties:
       CidrBlock: !Ref VpcCIDR
       EnableDnsSupport: true
@@ -36,82 +36,104 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref EnvironmentName
-
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 3e4a7c3f-619e-489f-8552-106d7cf42c81
   InternetGateway:
-    Type: AWS::EC2::InternetGateway
+    Type: "AWS::EC2::InternetGateway"
     Properties:
       Tags:
         - Key: Name
           Value: !Ref EnvironmentName
-
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 8e2d2100-77e2-42d3-ae8d-5392cf2d565d
   InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
+    Type: "AWS::EC2::VPCGatewayAttachment"
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
-
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 9660e3d1-a16a-4fa0-b4ce-80576b2451c9
   PublicSubnet1:
-    Type: AWS::EC2::Subnet
+    Type: "AWS::EC2::Subnet"
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs ""]
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
       CidrBlock: !Ref PublicSubnet1CIDR
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Public Subnet (AZ1)
-
+          Value: !Sub "${EnvironmentName} Public Subnet (AZ1)"
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 027cdd89-efbe-43a6-be70-077d64324a9c
   PublicRouteTable:
-    Type: AWS::EC2::RouteTable
+    Type: "AWS::EC2::RouteTable"
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} Public Routes
-
+          Value: !Sub "${EnvironmentName} Public Routes"
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: f7bd9eb7-5978-49e9-9d6e-41777ec8f26f
   DefaultPublicRoute:
-    Type: AWS::EC2::Route
+    Type: "AWS::EC2::Route"
     DependsOn: InternetGatewayAttachment
     Properties:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 5fbc114b-061e-4d06-8598-58fb67fbd783
   PublicSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet1
-
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: c8945d42-cebd-4ce7-b3c3-6867f722295b
   EC2Instance:
-    Type: AWS::EC2::Instance
+    Type: "AWS::EC2::Instance"
     Properties:
       InstanceType: t2.micro
       ImageId:
-        Fn::FindInMap:
+        "Fn::FindInMap":
           - RegionMap
-          - !Ref AWS::Region
+          - !Ref "AWS::Region"
           - AMI
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName} miniconda instance
+          Value: !Sub "${EnvironmentName} miniconda instance"
       KeyName: !Ref KeyName
       NetworkInterfaces:
         - AssociatePublicIpAddress: "true"
           DeviceIndex: "0"
           GroupSet:
-            - Ref: "MySecurityGroup"
+            - Ref: MySecurityGroup
           SubnetId:
-            Ref: "PublicSubnet1"
+            Ref: PublicSubnet1
       UserData:
-        "Fn::Base64": !Sub |
+        "Fn::Base64": !Sub >
           #!/bin/bash -xe   
-          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-          sudo chmod +x Miniconda3-latest-Linux-x86_64.sh
-          ./Miniconda3-latest-Linux-x86_64.sh
 
+          wget
+          https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+
+          sudo chmod +x Miniconda3-latest-Linux-x86_64.sh
+
+          ./Miniconda3-latest-Linux-x86_64.sh
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: 47c5c951-79f8-4cbc-bced-ffad46f1f203
   MySecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+    Type: "AWS::EC2::SecurityGroup"
     Properties:
       GroupDescription: Open Port 22 for ssh
       VpcId: !Ref VPC
@@ -128,7 +150,112 @@ Resources:
           FromPort: 5000
           ToPort: 5000
           CidrIp: 0.0.0.0/0
+    Metadata:
+      "AWS::CloudFormation::Designer":
+        id: c597110e-44b0-4c6b-ae5f-9f48aadb8e08
 Outputs:
   ConnectionCMD:
-    Value: !Join ["", [ssh -A ubuntu@, !GetAtt EC2Instance.PublicIp]]
+    Value: !Join
+      - ""
+      - - ssh -A ubuntu@
+        - !GetAtt EC2Instance.PublicIp
     Description: Copy and run it in your shell(ssh-add *.pem for this to work)
+Metadata:
+  "AWS::CloudFormation::Designer":
+    8e2d2100-77e2-42d3-ae8d-5392cf2d565d:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 820
+        "y": 210
+      z: 0
+      embeds: []
+    3e4a7c3f-619e-489f-8552-106d7cf42c81:
+      size:
+        width: 690
+        height: 600
+      position:
+        x: 80
+        "y": 90
+      z: 1
+      embeds:
+        - c597110e-44b0-4c6b-ae5f-9f48aadb8e08
+        - f7bd9eb7-5978-49e9-9d6e-41777ec8f26f
+        - 027cdd89-efbe-43a6-be70-077d64324a9c
+    c597110e-44b0-4c6b-ae5f-9f48aadb8e08:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 110
+        "y": 450
+      z: 2
+      parent: 3e4a7c3f-619e-489f-8552-106d7cf42c81
+      embeds: []
+      iscontainedinside:
+        - 3e4a7c3f-619e-489f-8552-106d7cf42c81
+    f7bd9eb7-5978-49e9-9d6e-41777ec8f26f:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 410
+        "y": 150
+      z: 2
+      parent: 3e4a7c3f-619e-489f-8552-106d7cf42c81
+      embeds:
+        - 5fbc114b-061e-4d06-8598-58fb67fbd783
+      iscontainedinside:
+        - 3e4a7c3f-619e-489f-8552-106d7cf42c81
+    027cdd89-efbe-43a6-be70-077d64324a9c:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 110
+        "y": 150
+      z: 2
+      parent: 3e4a7c3f-619e-489f-8552-106d7cf42c81
+      embeds:
+        - 47c5c951-79f8-4cbc-bced-ffad46f1f203
+      iscontainedinside:
+        - 3e4a7c3f-619e-489f-8552-106d7cf42c81
+    47c5c951-79f8-4cbc-bced-ffad46f1f203:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 140
+        "y": 210
+      z: 3
+      parent: 027cdd89-efbe-43a6-be70-077d64324a9c
+      embeds: []
+      iscontainedinside:
+        - 027cdd89-efbe-43a6-be70-077d64324a9c
+    c8945d42-cebd-4ce7-b3c3-6867f722295b:
+      source:
+        id: f7bd9eb7-5978-49e9-9d6e-41777ec8f26f
+      target:
+        id: 027cdd89-efbe-43a6-be70-077d64324a9c
+    9660e3d1-a16a-4fa0-b4ce-80576b2451c9:
+      source:
+        id: 3e4a7c3f-619e-489f-8552-106d7cf42c81
+      target:
+        id: 8e2d2100-77e2-42d3-ae8d-5392cf2d565d
+    5fbc114b-061e-4d06-8598-58fb67fbd783:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 440
+        "y": 210
+      z: 3
+      parent: f7bd9eb7-5978-49e9-9d6e-41777ec8f26f
+      embeds: []
+      isassociatedwith:
+        - 8e2d2100-77e2-42d3-ae8d-5392cf2d565d
+      iscontainedinside:
+        - f7bd9eb7-5978-49e9-9d6e-41777ec8f26f
+      dependson:
+        - 9660e3d1-a16a-4fa0-b4ce-80576b2451c9
